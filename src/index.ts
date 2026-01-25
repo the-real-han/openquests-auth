@@ -73,7 +73,7 @@ async function generateState(): Promise<string> {
     return Array.from(buffer).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Sign data using HMAC-SHA256
+// Sign data using HMAC-SHA256 (returns base64url-encoded signature)
 async function sign(data: string, secret: string): Promise<string> {
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
@@ -84,7 +84,11 @@ async function sign(data: string, secret: string): Promise<string> {
         ['sign']
     );
     const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
-    return btoa(String.fromCharCode(...new Uint8Array(signature)));
+    // Use base64url encoding (URL-safe: replace +/= with -_)
+    return btoa(String.fromCharCode(...new Uint8Array(signature)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
 }
 
 // Verify HMAC signature (constant-time)
@@ -176,7 +180,11 @@ async function handleGitHubCallback(request: Request, env: Env): Promise<Respons
     }
 
     const cookieValue = stateCookie.split('=')[1];
-    const [cookieState, cookieExpiry, cookieSignature] = cookieValue.split(':');
+    // Split only on first two colons to preserve signature
+    const parts = cookieValue.split(':');
+    const cookieState = parts[0];
+    const cookieExpiry = parts[1];
+    const cookieSignature = parts.slice(2).join(':'); // Rejoin in case signature contains colons
 
     // Verify signature
     const stateData = `${cookieState}:${cookieExpiry}`;
@@ -234,7 +242,7 @@ async function handleGitHubCallback(request: Request, env: Env): Promise<Respons
     const sessionToken = await createJWT(payload, env.AUTH_SECRET);
 
     // Redirect to frontend with token
-    const redirectUrl = new URL(env.FRONTEND_URL);
+    const redirectUrl = new URL(env.FRONTEND_URL + '/openquests/');
     redirectUrl.searchParams.set('token', sessionToken);
 
     return new Response(null, {
