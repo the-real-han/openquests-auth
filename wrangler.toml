@@ -1,0 +1,12 @@
+name = "openquests-auth"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Worker configuration
+workers_dev = true
+
+# Environment variables (set via wrangler secret put)
+# GITHUB_CLIENT_ID
+# GITHUB_CLIENT_SECRET  
+# AUTH_SECRET
+# FRONTEND_URL

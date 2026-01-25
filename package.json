@@ -1,0 +1,13 @@
+{
+    "name": "openquests-auth",
+    "version": "1.0.0",
+    "description": "GitHub OAuth service for OpenQuests",
+    "scripts": {
+        "dev": "wrangler dev",
+        "deploy": "wrangler deploy"
+    },
+    "devDependencies": {
+        "@cloudflare/workers-types": "^4.20241127.0",
+        "wrangler": "^3.102.0"
+    }
+}
