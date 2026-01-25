@@ -9,7 +9,7 @@ export default {
 
         // Route handler
         if (url.pathname === '/auth/github' && request.method === 'GET') {
-            return handleGitHubAuth(env);
+            return handleGitHubAuth(request, env);
         }
 
         if (url.pathname === '/auth/github/callback' && request.method === 'GET') {
@@ -137,7 +137,7 @@ async function verifyJWT(token: string, secret: string): Promise<UserPayload | n
 }
 
 // GET /auth/github
-async function handleGitHubAuth(env: Env): Promise<Response> {
+async function handleGitHubAuth(request: Request, env: Env): Promise<Response> {
     const state = await generateState();
     const stateExpiry = Math.floor(Date.now() / 1000) + 300; // 5 minutes
     const stateData = `${state}:${stateExpiry}`;
@@ -145,7 +145,7 @@ async function handleGitHubAuth(env: Env): Promise<Response> {
 
     const githubAuthUrl = new URL('https://github.com/login/oauth/authorize');
     githubAuthUrl.searchParams.set('client_id', env.GITHUB_CLIENT_ID);
-    githubAuthUrl.searchParams.set('redirect_uri', `${new URL(env.FRONTEND_URL).origin}/auth/github/callback`);
+    githubAuthUrl.searchParams.set('redirect_uri', `${new URL(request.url).origin}/auth/github/callback`);
     githubAuthUrl.searchParams.set('scope', 'read:user');
     githubAuthUrl.searchParams.set('state', state);
 
