@@ -16,6 +16,10 @@ export default {
             return handleGitHubCallback(request, env);
         }
 
+        if (url.pathname === '/action' && request.method === 'POST') {
+            return handleAction(request, env);
+        }
+
         if (url.pathname === '/auth/me' && request.method === 'GET') {
             return handleAuthMe(request, env);
         }
@@ -39,8 +43,15 @@ interface UserPayload {
     github_id: number;
     username: string;
     avatar_url: string;
+    access_token: string;
     iat: number;
     exp: number;
+}
+
+interface ActionBody {
+    world: string;
+    issueNumber: number;
+    comment: string;
 }
 
 // CORS helper
@@ -235,6 +246,7 @@ async function handleGitHubCallback(request: Request, env: Env): Promise<Respons
         github_id: userData.id,
         username: userData.login,
         avatar_url: userData.avatar_url,
+        access_token: tokenData.access_token,
         iat: now_ts,
         exp: now_ts + 86400, // 24 hours
     };
@@ -285,6 +297,70 @@ async function handleAuthMe(request: Request, env: Env): Promise<Response> {
             username: payload.username,
             avatarUrl: payload.avatar_url,
             id: payload.github_id
+        }), {
+            headers: { 'Content-Type': 'application/json' }
+        }),
+        env.FRONTEND_URL
+    );
+}
+
+// POST /action
+async function handleAction(request: Request, env: Env): Promise<Response> {
+    const body = await request.json() as ActionBody;
+    const world = body.world;
+    const issueNumber = body.issueNumber;
+    const comment = body.comment;
+
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return addCORSHeaders(
+            new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
+            }),
+            env.FRONTEND_URL
+        );
+    }
+
+    const token = authHeader.substring(7);
+    const payload = await verifyJWT(token, env.AUTH_SECRET);
+
+    if (!payload) {
+        return addCORSHeaders(
+            new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
+            }),
+            env.FRONTEND_URL
+        );
+    }
+
+    const accessToken = payload.access_token;
+
+    const response = await fetch(`https://api.github.com/repos/the-real-han/${world}/issues/${issueNumber}/comments`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ body: comment }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        return addCORSHeaders(
+            new Response(JSON.stringify({ error }), {
+                status: response.status,
+                headers: { 'Content-Type': 'application/json' }
+            }),
+            env.FRONTEND_URL
+        );
+    }
+
+    return addCORSHeaders(
+        new Response(JSON.stringify({
+            message: 'Comment added successfully',
         }), {
             headers: { 'Content-Type': 'application/json' }
         }),
