@@ -343,6 +343,7 @@ async function handleAction(request: Request, env: Env): Promise<Response> {
             'Authorization': `Bearer ${accessToken}`,
             'Accept': 'application/vnd.github.v3+json',
             'Content-Type': 'application/json',
+            'User-Agent': 'OpenQuests-Proxy'
         },
         body: JSON.stringify({ body: comment }),
     });
