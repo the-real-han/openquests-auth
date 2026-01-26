@@ -150,7 +150,7 @@ async function handleGitHubAuth(request: Request, env: Env): Promise<Response> {
     const githubAuthUrl = new URL('https://github.com/login/oauth/authorize');
     githubAuthUrl.searchParams.set('client_id', env.GITHUB_CLIENT_ID);
     githubAuthUrl.searchParams.set('redirect_uri', `${new URL(request.url).origin}/auth/github/callback`);
-    githubAuthUrl.searchParams.set('scope', 'read:user');
+    githubAuthUrl.searchParams.set('scope', 'read:user public_repo');
     githubAuthUrl.searchParams.set('state', state);
 
     return new Response(null, {
