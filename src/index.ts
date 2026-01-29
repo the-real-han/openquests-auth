@@ -28,6 +28,10 @@ export default {
             return handleLogout(env.FRONTEND_URL);
         }
 
+        if (url.pathname === '/api/create-character' && request.method === 'POST') {
+            return handleCreateCharacter(request, env);
+        }
+
         return new Response('Not Found', { status: 404 });
     }
 };
@@ -248,7 +252,7 @@ async function handleGitHubCallback(request: Request, env: Env): Promise<Respons
         avatar_url: userData.avatar_url,
         access_token: tokenData.access_token,
         iat: now_ts,
-        exp: now_ts + 86400, // 24 hours
+        exp: now_ts + 86400
     };
 
     const sessionToken = await createJWT(payload, env.AUTH_SECRET);
@@ -266,32 +270,33 @@ async function handleGitHubCallback(request: Request, env: Env): Promise<Respons
     });
 }
 
-// GET /auth/me
-async function handleAuthMe(request: Request, env: Env): Promise<Response> {
+async function extractPayload(request: Request, env: Env) {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return addCORSHeaders(
-            new Response(JSON.stringify({ error: 'Unauthorized' }), {
-                status: 401,
-                headers: { 'Content-Type': 'application/json' }
-            }),
-            env.FRONTEND_URL
-        );
+        return null;
     }
-
     const token = authHeader.substring(7);
     const payload = await verifyJWT(token, env.AUTH_SECRET);
+    return payload;
+}
 
+function invalidTokenResponse(env: Env) {
+    return addCORSHeaders(
+        new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+        }),
+        env.FRONTEND_URL
+    );
+}
+
+
+// GET /auth/me
+async function handleAuthMe(request: Request, env: Env): Promise<Response> {
+    const payload = await extractPayload(request, env);
     if (!payload) {
-        return addCORSHeaders(
-            new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
-                status: 401,
-                headers: { 'Content-Type': 'application/json' }
-            }),
-            env.FRONTEND_URL
-        );
+        return invalidTokenResponse(env);
     }
-
     return addCORSHeaders(
         new Response(JSON.stringify({
             username: payload.username,
@@ -311,28 +316,9 @@ async function handleAction(request: Request, env: Env): Promise<Response> {
     const issueNumber = body.issueNumber;
     const comment = body.comment;
 
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return addCORSHeaders(
-            new Response(JSON.stringify({ error: 'Unauthorized' }), {
-                status: 401,
-                headers: { 'Content-Type': 'application/json' }
-            }),
-            env.FRONTEND_URL
-        );
-    }
-
-    const token = authHeader.substring(7);
-    const payload = await verifyJWT(token, env.AUTH_SECRET);
-
+    const payload = await extractPayload(request, env);
     if (!payload) {
-        return addCORSHeaders(
-            new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
-                status: 401,
-                headers: { 'Content-Type': 'application/json' }
-            }),
-            env.FRONTEND_URL
-        );
+        return invalidTokenResponse(env);
     }
 
     const accessToken = payload.access_token;
@@ -376,5 +362,150 @@ function handleLogout(frontendUrl: string): Response {
             headers: { 'Content-Type': 'application/json' }
         }),
         frontendUrl
+    );
+}
+
+interface CreateCharacterBody {
+    world: string;
+    characterName: string;
+    class: 'Warrior' | 'Lancer' | 'Archer' | 'Monk' | 'Adventurer';
+    backstory?: string;
+}
+
+// POST /api/create-character
+async function handleCreateCharacter(request: Request, env: Env): Promise<Response> {
+    const payload = await extractPayload(request, env);
+    if (!payload) {
+        return invalidTokenResponse(env);
+    }
+
+    // Input Validation
+    let body: CreateCharacterBody | null = null;
+    let errorMsg: string | null = null;
+    const validClasses = ['Archer', 'Warrior', 'Lancer', 'Monk', 'Adventurer'];
+
+    try {
+        body = await request.json() as CreateCharacterBody;
+        if (!body.world || !body.characterName || !body.class) {
+            errorMsg = 'Missing required fields';
+        }
+        if (body.characterName.length > 32) {
+            errorMsg = 'Character name too long (max 32 chars)';
+        }
+        if (!validClasses.includes(body.class)) {
+            errorMsg = 'Invalid class';
+        }
+        if (body.backstory && body.backstory.length > 500) {
+            errorMsg = 'Backstory too long (max 500 chars)';
+        }
+
+    } catch {
+        errorMsg = 'Invalid JSON body';
+    }
+
+    if (errorMsg) {
+        return addCORSHeaders(
+            new Response(JSON.stringify({ error: errorMsg }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            }),
+            env.FRONTEND_URL
+        );
+    }
+
+    const accessToken = payload.access_token;
+    const username = payload.username;
+    const repoOwner = 'the-real-han';
+    const repoName = body?.world;
+
+    const issuesUrl = new URL(`https://api.github.com/repos/${repoOwner}/${repoName}/issues`);
+    issuesUrl.searchParams.set('state', 'open');
+    issuesUrl.searchParams.set('labels', 'player');
+    issuesUrl.searchParams.set('creator', username);
+
+    const issuesResponse = await fetch(issuesUrl.toString(), {
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'OpenQuests Proxy'
+        }
+    });
+
+    if (!issuesResponse.ok) {
+        const error = await issuesResponse.json().catch(() => ({ message: issuesResponse.statusText }));
+        return addCORSHeaders(
+            new Response(JSON.stringify({ error: 'Failed to check existing characters', details: error }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            }),
+            env.FRONTEND_URL
+        );
+    }
+
+    const existingIssues = await issuesResponse.json() as any[];
+    if (existingIssues.length > 0) {
+        return addCORSHeaders(
+            new Response(JSON.stringify({
+                error: 'character_exists',
+                message: 'You already have an active character.'
+            }), {
+                status: 409,
+                headers: { 'Content-Type': 'application/json' }
+            }),
+            env.FRONTEND_URL
+        );
+    }
+
+    // Create Issue
+    const title = `🧙 Player: ${body?.characterName} (@${username})`;
+    const issueBody = `## Character
+Name: ${body?.characterName}
+Class: ${body?.class}
+
+## Backstory
+${body?.backstory || 'No backstory provided.'}
+
+## Meta
+GitHub: @${username}
+Created via OpenQuests UI`;
+
+    const createResponse = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/issues`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'OpenQuests-Auth'
+        },
+        body: JSON.stringify({
+            title: title,
+            body: issueBody,
+            labels: ['player', `class:${body?.class}`]
+        })
+    });
+
+    if (!createResponse.ok) {
+        const error = await createResponse.json().catch(() => ({ message: createResponse.statusText }));
+        return addCORSHeaders(
+            new Response(JSON.stringify({ error: 'Failed to create character issue', details: error }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            }),
+            env.FRONTEND_URL
+        );
+    }
+
+    const createdIssue = await createResponse.json() as any;
+
+    return addCORSHeaders(
+        new Response(JSON.stringify({
+            issueNumber: createdIssue.number,
+            characterName: body?.characterName,
+            class: body?.class
+        }), {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' }
+        }),
+        env.FRONTEND_URL
     );
 }
