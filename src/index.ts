@@ -458,9 +458,10 @@ async function handleCreateCharacter(request: Request, env: Env): Promise<Respon
 
     // Create Issue
     const title = `🧙 Player: ${body?.characterName} (@${username})`;
-    const issueBody = `## Character
-Name: ${body?.characterName}
-Class: ${body?.class}
+    const issueBody = `## Character Name: 
+${body?.characterName}
+## Class: 
+${body?.class}
 
 ## Backstory
 ${body?.backstory || 'No backstory provided.'}
