@@ -368,7 +368,7 @@ function handleLogout(frontendUrl: string): Response {
 interface CreateCharacterBody {
     world: string;
     characterName: string;
-    class: 'Warrior' | 'Lancer' | 'Archer' | 'Monk' | 'Adventurer';
+    characterClass: 'Warrior' | 'Lancer' | 'Archer' | 'Monk' | 'Adventurer';
     backstory?: string;
 }
 
@@ -386,13 +386,13 @@ async function handleCreateCharacter(request: Request, env: Env): Promise<Respon
 
     try {
         body = await request.json() as CreateCharacterBody;
-        if (!body.world || !body.characterName || !body.class) {
+        if (!body.world || !body.characterName || !body.characterClass) {
             errorMsg = 'Missing required fields';
         }
         if (body.characterName.length > 32) {
             errorMsg = 'Character name too long (max 32 chars)';
         }
-        if (!validClasses.includes(body.class)) {
+        if (!validClasses.includes(body.characterClass)) {
             errorMsg = 'Invalid class';
         }
         if (body.backstory && body.backstory.length > 500) {
@@ -461,7 +461,7 @@ async function handleCreateCharacter(request: Request, env: Env): Promise<Respon
     const issueBody = `## Character Name: 
 ${body?.characterName}
 ## Class: 
-${body?.class}
+${body?.characterClass}
 
 ## Backstory
 ${body?.backstory || 'No backstory provided.'}
@@ -481,7 +481,7 @@ Created via OpenQuests UI`;
         body: JSON.stringify({
             title: title,
             body: issueBody,
-            labels: ['player', `class:${body?.class}`]
+            labels: ['player', `class:${body?.characterClass}`]
         })
     });
 
@@ -502,7 +502,7 @@ Created via OpenQuests UI`;
         new Response(JSON.stringify({
             issueNumber: createdIssue.number,
             characterName: body?.characterName,
-            class: body?.class
+            characterClass: body?.characterClass
         }), {
             status: 201,
             headers: { 'Content-Type': 'application/json' }
