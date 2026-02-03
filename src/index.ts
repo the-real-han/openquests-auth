@@ -258,7 +258,7 @@ async function handleGitHubCallback(request: Request, env: Env): Promise<Respons
     const sessionToken = await createJWT(payload, env.AUTH_SECRET);
 
     // Redirect to frontend with token
-    const redirectUrl = new URL(env.FRONTEND_URL + '/openquests/');
+    const redirectUrl = new URL(env.FRONTEND_URL);
     redirectUrl.searchParams.set('token', sessionToken);
 
     return new Response(null, {
