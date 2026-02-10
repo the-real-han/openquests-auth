@@ -389,14 +389,14 @@ async function handleCreateCharacter(request: Request, env: Env): Promise<Respon
         if (!body.world || !body.characterName || !body.characterClass) {
             errorMsg = 'Missing required fields';
         }
-        if (body.characterName.length > 32) {
-            errorMsg = 'Character name too long (max 32 chars)';
+        if (body.characterName.length > 15) {
+            errorMsg = 'Character name too long (max 15 chars)';
         }
         if (!validClasses.includes(body.characterClass)) {
             errorMsg = 'Invalid class';
         }
-        if (body.backstory && body.backstory.length > 500) {
-            errorMsg = 'Backstory too long (max 500 chars)';
+        if (body.backstory && body.backstory.length > 200) {
+            errorMsg = 'Backstory too long (max 200 chars)';
         }
 
     } catch {
