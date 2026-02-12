@@ -464,11 +464,11 @@ ${body?.characterName}
 ${body?.characterClass}
 
 ## Backstory
-${body?.backstory || 'No backstory provided.'}
+${body?.backstory ?? ''}
 
 ## Meta
-GitHub: @${username}
-Created via OpenQuests UI`;
+## GitHub: @${username}
+## Created via OpenQuests UI`;
 
     const createResponse = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/issues`, {
         method: 'POST',
